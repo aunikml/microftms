@@ -81,13 +81,15 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [divisionalOverviewData, setDivisionalOverviewData] = useState([]);
+  const [divisionalLoading, setDivisionalLoading] = useState(true);
 
   // Interactive Map States
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [sidebarTab, setSidebarTab] = useState(0);
-  const [activeDashboardTab, setActiveDashboardTab] = useState(0); // 0 for Map, 1 for Scorecard
+  const [activeDashboardTab, setActiveDashboardTab] = useState(0); // 0 for Map, 1 for Divisional Overview, 2 for Scorecard
 
   // Leaflet refs
   const mapRef = useRef(null);
@@ -175,12 +177,25 @@ const Dashboard = () => {
     }
   };
 
+  const fetchDivisionalData = async () => {
+    setDivisionalLoading(true);
+    try {
+      const res = await api.get('dashboards/divisional-overview/');
+      setDivisionalOverviewData(res.data);
+    } catch (err) {
+      console.error('Failed to load divisional overview data:', err);
+    } finally {
+      setDivisionalLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === 'regional_manager') {
       navigate('/rm-dashboard', { replace: true });
       return;
     }
     fetchDashboardData();
+    fetchDivisionalData();
   }, [user, navigate]);
 
   // Compute unique divisions list for filters
@@ -631,6 +646,7 @@ const Dashboard = () => {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
         <Tabs value={activeDashboardTab} onChange={(e, val) => setActiveDashboardTab(val)}>
           <Tab label="Overview Map" sx={{ fontWeight: 700 }} />
+          <Tab label="Divisional Overview" sx={{ fontWeight: 700 }} />
           <Tab label="System Scorecard" sx={{ fontWeight: 700 }} />
         </Tabs>
       </Box>
@@ -993,8 +1009,222 @@ const Dashboard = () => {
         </Box>
       )}
 
-      {/* Tab Panel 2: Scorecard */}
+      {/* Tab Panel 2: Divisional Overview */}
       {activeDashboardTab === 1 && (
+        <Box>
+          <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+            {/* Map View of All Regional Offices */}
+            <Card sx={{ p: 0.5, height: 600, flexGrow: 1, display: 'flex', flexDirection: 'column', borderRadius: 3 }}>
+              <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', flexGrow: 1 }}>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <MapOutlined color="primary" /> Divisional Overview Map
+                </Typography>
+                
+                <Box 
+                  sx={{ 
+                    flexGrow: 1, 
+                    borderRadius: 2, 
+                    overflow: 'hidden', 
+                    border: (theme) => `2px solid ${theme.palette.secondary.main}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    zIndex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}
+                >
+                  {divisionalLoading ? (
+                    <CircularProgress />
+                  ) : (
+                    <MapContainer 
+                      center={[23.6850, 90.3563]} 
+                      zoom={7} 
+                      style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
+                        url={tileLayerUrl}
+                      />
+                      <GeoJSON
+                        key={`divisional-${theme.palette.mode}`}
+                        data={bangladeshDivisions}
+                        style={getDivisionStyle}
+                        onEachFeature={onEachDivision}
+                      />
+                      {divisionalOverviewData.filter(ro => ro.latitude && ro.longitude).map((office) => {
+                        const lat = parseFloat(office.latitude);
+                        const lng = parseFloat(office.longitude);
+                        
+                        const totalCohorts = office.cohorts.length;
+                        const totalOfficeTrainees = office.cohorts.reduce((a, b) => a + b.total_trainees, 0);
+
+                        return (
+                          <Marker 
+                            key={office.id} 
+                            position={[lat, lng]}
+                            icon={createCustomIcon('completed')}
+                          >
+                            <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                              <Box sx={{ p: 0.25 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                                  {office.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
+                                  {office.division_name} • {totalCohorts} Cohorts • {totalOfficeTrainees} Trainees
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                            <Popup>
+                              <Box sx={{ p: 0.5, minWidth: 260, maxWidth: 320 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'secondary.main', mb: 0.5 }}>
+                                  {office.name}
+                                </Typography>
+                                <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+                                  Division: {office.division_name} • Location: {office.location}
+                                </Typography>
+                                <Divider sx={{ my: 0.5 }} />
+                                
+                                <Typography variant="body2" sx={{ fontWeight: 800, mt: 1, mb: 0.5 }}>
+                                  Cohorts Active ({totalCohorts})
+                                </Typography>
+                                
+                                {office.cohorts.length === 0 ? (
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic', display: 'block', py: 1 }}>
+                                    No active trainees or cohorts in this office
+                                  </Typography>
+                                ) : (
+                                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1, maxHeight: 220, overflowY: 'auto', pr: 0.5 }}>
+                                    {office.cohorts.map((coh) => (
+                                      <Box key={coh.cohort_code} sx={{ p: 1, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                            {coh.cohort_code}
+                                          </Typography>
+                                          <Chip 
+                                            label={`${coh.total_trainees} Trainees`} 
+                                            size="small" 
+                                            color="primary"
+                                            sx={{ fontSize: '0.65rem', height: 18, fontWeight: 700 }}
+                                          />
+                                        </Box>
+                                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                          {coh.cohort_name}
+                                        </Typography>
+                                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                                          <Chip 
+                                            label={`Basic: ${coh.stages.basic}`} 
+                                            size="small" 
+                                            variant="outlined" 
+                                            sx={{ fontSize: '0.6rem', height: 16, fontWeight: 600 }} 
+                                          />
+                                          <Chip 
+                                            label={`Ref 1: ${coh.stages.refresher_1}`} 
+                                            size="small" 
+                                            variant="outlined" 
+                                            sx={{ fontSize: '0.6rem', height: 16, fontWeight: 600 }} 
+                                          />
+                                          <Chip 
+                                            label={`Ref 2: ${coh.stages.refresher_2}`} 
+                                            size="small" 
+                                            variant="outlined" 
+                                            sx={{ fontSize: '0.6rem', height: 16, fontWeight: 600 }} 
+                                          />
+                                        </Box>
+                                      </Box>
+                                    ))}
+                                  </Box>
+                                )}
+                              </Box>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
+                    </MapContainer>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+
+            {/* List Sidebar for Regional Offices info */}
+            <Card sx={{ p: 0.5, height: 600, width: { xs: '100%', md: 380 }, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRadius: 3 }}>
+              <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', flexGrow: 1, p: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>
+                  Regional Offices List
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Click on an office in the list to review its total cohort and trainee stats.
+                </Typography>
+                
+                <Box 
+                  sx={{ 
+                    flexGrow: 1, 
+                    overflowY: 'auto', 
+                    maxHeight: 450,
+                    pr: 0.5,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5
+                  }}
+                >
+                  {divisionalLoading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : divisionalOverviewData.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', py: 4 }}>
+                      No regional offices found
+                    </Typography>
+                  ) : (
+                    divisionalOverviewData.map((office) => {
+                      const totalCohorts = office.cohorts.length;
+                      const totalOfficeTrainees = office.cohorts.reduce((a, b) => a + b.total_trainees, 0);
+
+                      return (
+                        <Card 
+                          key={office.id} 
+                          variant="outlined"
+                          sx={{ 
+                            borderRadius: 2,
+                            borderColor: 'divider',
+                            transition: 'all 0.2s',
+                            '&:hover': {
+                              borderColor: 'secondary.main',
+                              bgcolor: 'action.hover',
+                              transform: 'translateY(-2px)',
+                              boxShadow: theme.shadows[1]
+                            }
+                          }}
+                        >
+                          <CardContent sx={{ p: '12px !important' }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'secondary.main' }}>
+                              {office.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                              Division: {office.division_name} • {office.location}
+                            </Typography>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Typography variant="caption" sx={{ fontWeight: 700, px: 1, py: 0.25, borderRadius: 1, bgcolor: 'secondary.light', color: 'secondary.dark' }}>
+                                {totalCohorts} Cohorts
+                              </Typography>
+                              <Typography variant="caption" sx={{ fontWeight: 750, color: 'text.secondary' }}>
+                                {totalOfficeTrainees} Trainees
+                              </Typography>
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      );
+                    })
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
+        </Box>
+      )}
+
+      {/* Tab Panel 3: Scorecard */}
+      {activeDashboardTab === 2 && (
         <motion.div
           variants={containerVariants}
           initial="hidden"
