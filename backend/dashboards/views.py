@@ -107,7 +107,7 @@ class DashboardViewSet(viewsets.ViewSet):
             from regional_office.models import RegionalOffice
             from batches.models import Participant
             
-            offices = RegionalOffice.objects.all().select_related('division')
+            offices = RegionalOffice.objects.all().select_related('division').prefetch_related('regional_managers')
             participants = Participant.objects.all().select_related(
                 'regional_office',
                 'batch__cohort'
@@ -122,6 +122,7 @@ class DashboardViewSet(viewsets.ViewSet):
                     "division_name": office.division.name if office.division else "No Division",
                     "latitude": float(office.latitude) if office.latitude else None,
                     "longitude": float(office.longitude) if office.longitude else None,
+                    "regional_managers": [f"{m.first_name} {m.last_name}" for m in office.regional_managers.all()],
                     "cohorts": {}
                 }
             

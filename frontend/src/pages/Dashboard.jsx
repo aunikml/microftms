@@ -72,6 +72,18 @@ const createCustomIcon = (status) => {
   });
 };
 
+// Predefined coordinates for division centers
+const DIVISION_CENTERS = {
+  'dhaka division': [23.8103, 90.4125],
+  'chattogram division': [22.3569, 91.7832],
+  'sylhet division': [24.8949, 91.8687],
+  'rajshahi division': [24.3636, 88.6241],
+  'khulna division': [22.8456, 89.5403],
+  'barishal division': [22.7010, 90.3535],
+  'rangpur division': [25.7439, 89.2753],
+  'mymensingh division': [24.7471, 90.4203],
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
   const theme = useTheme();
@@ -93,6 +105,7 @@ const Dashboard = () => {
 
   // Leaflet refs
   const mapRef = useRef(null);
+  const divisionalMapRef = useRef(null);
   const markerRefs = useRef({});
 
   // Reset marker refs when batches change
@@ -323,6 +336,45 @@ const Dashboard = () => {
       cohorts[cohortCode].traineeCount += (b.participant_count || 0);
     });
     return Object.values(cohorts);
+  };
+
+  // Group regional offices by division to calculate division-wide stats
+  const divisionStats = React.useMemo(() => {
+    const stats = {};
+    divisionalOverviewData.forEach(office => {
+      const div = office.division_name || 'No Division';
+      if (!stats[div]) {
+        stats[div] = {
+          name: div,
+          officeCount: 0,
+          traineeCount: 0,
+          offices: []
+        };
+      }
+      stats[div].officeCount += 1;
+      const trainees = office.cohorts.reduce((sum, coh) => sum + coh.total_trainees, 0);
+      stats[div].traineeCount += trainees;
+      stats[div].offices.push(office);
+    });
+    return Object.values(stats).sort((a, b) => a.name.localeCompare(b.name));
+  }, [divisionalOverviewData]);
+
+  // Zoom/pan to division center when a division in the list is clicked
+  const handleDivisionSelect = (divisionName) => {
+    const cleanName = divisionName.toLowerCase().replace('division', '').trim();
+    
+    // Find matching key in DIVISION_CENTERS
+    let center = [23.6850, 90.3563];
+    for (const key of Object.keys(DIVISION_CENTERS)) {
+      if (key.includes(cleanName)) {
+        center = DIVISION_CENTERS[key];
+        break;
+      }
+    }
+    
+    if (divisionalMapRef.current) {
+      divisionalMapRef.current.setView(center, 9, { animate: true, duration: 1.2 });
+    }
   };
 
   const isTrainerRole = ['trainer', 'master_trainer'].includes(user?.role);
@@ -1041,6 +1093,7 @@ const Dashboard = () => {
                       center={[23.6850, 90.3563]} 
                       zoom={7} 
                       style={{ height: '100%', width: '100%', position: 'absolute', top: 0, left: 0 }}
+                      ref={divisionalMapRef}
                     >
                       <TileLayer
                         attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
@@ -1071,7 +1124,13 @@ const Dashboard = () => {
                                   {office.name}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
-                                  {office.division_name} • {totalCohorts} Cohorts • {totalOfficeTrainees} Trainees
+                                  Division: {office.division_name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
+                                  RM: {office.regional_managers && office.regional_managers.length > 0 ? office.regional_managers.join(', ') : 'None'}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', display: 'block' }}>
+                                  {totalCohorts} Cohorts • {totalOfficeTrainees} Trainees
                                 </Typography>
                               </Box>
                             </Tooltip>
@@ -1080,8 +1139,11 @@ const Dashboard = () => {
                                 <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'secondary.main', mb: 0.5 }}>
                                   {office.name}
                                 </Typography>
-                                <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+                                <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 0.5 }}>
                                   Division: {office.division_name} • Location: {office.location}
+                                </Typography>
+                                <Typography variant="caption" display="block" sx={{ fontWeight: 700, color: 'text.secondary', mb: 1 }}>
+                                  Manager: {office.regional_managers && office.regional_managers.length > 0 ? office.regional_managers.join(', ') : 'None assigned'}
                                 </Typography>
                                 <Divider sx={{ my: 0.5 }} />
                                 
@@ -1146,14 +1208,14 @@ const Dashboard = () => {
               </CardContent>
             </Card>
 
-            {/* List Sidebar for Regional Offices info */}
+            {/* List Sidebar for Divisions */}
             <Card sx={{ p: 0.5, height: 600, width: { xs: '100%', md: 380 }, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRadius: 3 }}>
               <CardContent sx={{ display: 'flex', flexDirection: 'column', height: '100%', flexGrow: 1, p: 2 }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>
-                  Regional Offices List
+                  Divisions Overview List
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Click on an office in the list to review its total cohort and trainee stats.
+                  Click on a division card to focus the map and see all its regional offices.
                 </Typography>
                 
                 <Box 
@@ -1171,25 +1233,24 @@ const Dashboard = () => {
                     <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
                       <CircularProgress size={24} />
                     </Box>
-                  ) : divisionalOverviewData.length === 0 ? (
+                  ) : divisionStats.length === 0 ? (
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', textAlign: 'center', py: 4 }}>
-                      No regional offices found
+                      No divisions found
                     </Typography>
                   ) : (
-                    divisionalOverviewData.map((office) => {
-                      const totalCohorts = office.cohorts.length;
-                      const totalOfficeTrainees = office.cohorts.reduce((a, b) => a + b.total_trainees, 0);
-
+                    divisionStats.map((div) => {
                       return (
                         <Card 
-                          key={office.id} 
+                          key={div.name} 
                           variant="outlined"
+                          onClick={() => handleDivisionSelect(div.name)}
                           sx={{ 
                             borderRadius: 2,
                             borderColor: 'divider',
+                            cursor: 'pointer',
                             transition: 'all 0.2s',
                             '&:hover': {
-                              borderColor: 'secondary.main',
+                              borderColor: 'primary.main',
                               bgcolor: 'action.hover',
                               transform: 'translateY(-2px)',
                               boxShadow: theme.shadows[1]
@@ -1197,18 +1258,15 @@ const Dashboard = () => {
                           }}
                         >
                           <CardContent sx={{ p: '12px !important' }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'secondary.main' }}>
-                              {office.name}
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                              {div.name}
                             </Typography>
                             <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                              Division: {office.division_name} • {office.location}
+                              Contains {div.officeCount} Regional Offices
                             </Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <Typography variant="caption" sx={{ fontWeight: 700, px: 1, py: 0.25, borderRadius: 1, bgcolor: 'secondary.light', color: 'secondary.dark' }}>
-                                {totalCohorts} Cohorts
-                              </Typography>
-                              <Typography variant="caption" sx={{ fontWeight: 750, color: 'text.secondary' }}>
-                                {totalOfficeTrainees} Trainees
+                              <Typography variant="caption" sx={{ fontWeight: 700, px: 1, py: 0.25, borderRadius: 1, bgcolor: 'primary.light', color: 'primary.dark' }}>
+                                {div.traineeCount} Trainees
                               </Typography>
                             </Box>
                           </CardContent>
