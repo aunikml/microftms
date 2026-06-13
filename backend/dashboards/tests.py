@@ -178,3 +178,40 @@ class DivisionalOverviewTestCase(APITestCase):
         cohort_res = next(c for c in office_res["cohorts"] if c["cohort_code"] == "COH-01")
         # Under progoti, only participant2 is returned, so total_trainees is 1
         self.assertEqual(cohort_res["total_trainees"], 1)
+
+    def test_drilldown_basic(self):
+        self.client.force_authenticate(user=self.admin)
+        url = reverse("dashboard-drilldown")
+        response = self.client.get(url, {
+            "regional_office_id": self.office.id,
+            "cohort_code": "COH-01",
+            "stage_type": "basic"
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return both participant1 and participant2 since both are in basic stage
+        self.assertEqual(len(response.data), 2)
+        participant_names = [p["name"] for p in response.data]
+        self.assertIn("Dabi User", participant_names)
+        self.assertIn("Progoti User", participant_names)
+
+    def test_drilldown_filter_program(self):
+        self.client.force_authenticate(user=self.admin)
+        url = reverse("dashboard-drilldown")
+        response = self.client.get(url, {
+            "regional_office_id": self.office.id,
+            "cohort_code": "COH-01",
+            "stage_type": "basic",
+            "program": "dabi"
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return participant1 (Dabi)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], "Dabi User")
+
+    def test_drilldown_missing_params(self):
+        self.client.force_authenticate(user=self.admin)
+        url = reverse("dashboard-drilldown")
+        response = self.client.get(url, {
+            "regional_office_id": self.office.id
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

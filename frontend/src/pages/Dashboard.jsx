@@ -28,13 +28,17 @@ import {
   Paper,
   Link,
   ToggleButton,
-  ToggleButtonGroup
+  ToggleButtonGroup,
+  Tooltip as MuiTooltip,
+  Drawer,
+  IconButton
 } from '@mui/material';
 import { 
   PeopleAltOutlined, 
   SchoolOutlined, 
   ClassOutlined, 
-  MapOutlined
+  MapOutlined,
+  Close
 } from '@mui/icons-material';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, GeoJSON } from 'react-leaflet';
 import { motion } from 'framer-motion';
@@ -98,6 +102,12 @@ const Dashboard = () => {
   const [divisionalOverviewData, setDivisionalOverviewData] = useState([]);
   const [divisionalLoading, setDivisionalLoading] = useState(true);
   const [divisionalProgram, setDivisionalProgram] = useState('all');
+
+  // Drilldown Drawer States
+  const [drilldownOpen, setDrilldownOpen] = useState(false);
+  const [drilldownLoading, setDrilldownLoading] = useState(false);
+  const [drilldownData, setDrilldownData] = useState([]);
+  const [drilldownParams, setDrilldownParams] = useState(null);
 
   // Interactive Map States
   const [searchTerm, setSearchTerm] = useState('');
@@ -202,6 +212,35 @@ const Dashboard = () => {
       console.error('Failed to load divisional overview data:', err);
     } finally {
       setDivisionalLoading(false);
+    }
+  };
+
+  const getBatchActiveStage = (batch) => {
+    const stageOrder = { basic: 1, refresher_1: 2, refresher_2: 3 };
+    const stages = (batch.stages || []).filter(s => ['scheduled', 'completed'].includes(s.status));
+    if (stages.length === 0) {
+      return 'basic';
+    }
+    const latest = stages.reduce((max, s) => {
+      const currentVal = stageOrder[s.stage_type] || 0;
+      const maxVal = stageOrder[max.stage_type] || 0;
+      return currentVal > maxVal ? s : max;
+    }, stages[0]);
+    return latest.stage_type;
+  };
+
+  const handleStageClick = async (officeId, officeName, cohortCode, stageType) => {
+    setDrilldownParams({ officeId, officeName, cohortCode, stageType });
+    setDrilldownOpen(true);
+    setDrilldownLoading(true);
+    setDrilldownData([]);
+    try {
+      const res = await api.get(`dashboards/drilldown/?regional_office_id=${officeId}&cohort_code=${cohortCode}&stage_type=${stageType}&program=${divisionalProgram}`);
+      setDrilldownData(res.data);
+    } catch (err) {
+      console.error('Failed to load drilldown data:', err);
+    } finally {
+      setDrilldownLoading(false);
     }
   };
 
@@ -315,6 +354,7 @@ const Dashboard = () => {
     return {
       trainers: metrics ? String(metrics.total_trainers) : "0",
       trainees: metrics ? String(metrics.total_participants) : "0",
+      regionalOffices: metrics ? String(metrics.total_regional_offices) : "0",
       activeBatches: String(active),
       completedBatches: String(completed),
       inactiveBatches: String(inactive)
@@ -360,6 +400,16 @@ const Dashboard = () => {
       stats[div].offices.push(office);
     });
     return Object.values(stats).sort((a, b) => a.name.localeCompare(b.name));
+  }, [divisionalOverviewData]);
+
+  const totalTraineesFiltered = React.useMemo(() => {
+    let sum = 0;
+    divisionalOverviewData.forEach(office => {
+      office.cohorts.forEach(coh => {
+        sum += coh.total_trainees;
+      });
+    });
+    return sum;
   }, [divisionalOverviewData]);
 
   // Zoom/pan to division center when a division in the list is clicked
@@ -1348,206 +1398,566 @@ const Dashboard = () => {
       )}
 
       {/* Tab Panel 3: Scorecard */}
-      {activeDashboardTab === 2 && (
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-        >
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
-              System Totals
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
-                <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
-                  <Card sx={{ p: 1, borderRadius: 3 }}>
-                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                          Total Trainers
-                        </Typography>
-                        {loading ? (
-                          <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
-                        ) : (
-                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            {getStatsCards().trainers}
+      {activeDashboardTab === 2 && (() => {
+        const stageStats = (() => {
+          let basic = 0;
+          let ref1 = 0;
+          let ref2 = 0;
+          divisionalOverviewData.forEach(office => {
+            office.cohorts.forEach(coh => {
+              basic += coh.stages.basic;
+              ref1 += coh.stages.refresher_1;
+              ref2 += coh.stages.refresher_2;
+            });
+          });
+          const total = basic + ref1 + ref2 || 1;
+          return {
+            basic,
+            refresher_1: ref1,
+            refresher_2: ref2,
+            basicPct: (basic / total) * 100,
+            ref1Pct: (ref1 / total) * 100,
+            ref2Pct: (ref2 / total) * 100,
+            total: basic + ref1 + ref2
+          };
+        })();
+
+        const maxTrainees = Math.max(...divisionStats.map(d => d.traineeCount), 1);
+
+        return (
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+          >
+            {/* Program Filter Toolbar for Scorecard */}
+            <Box 
+              sx={{ 
+                mb: 3, 
+                display: 'flex', 
+                gap: 2, 
+                flexWrap: 'wrap', 
+                alignItems: 'center',
+                bgcolor: 'background.paper',
+                p: 2,
+                borderRadius: 3,
+                boxShadow: (theme) => theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.05)',
+                border: '1px solid',
+                borderColor: 'divider'
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+                Filter Scorecard by Program:
+              </Typography>
+              <ToggleButtonGroup
+                value={divisionalProgram}
+                exclusive
+                onChange={(e, newProg) => {
+                  if (newProg !== null) setDivisionalProgram(newProg);
+                }}
+                size="small"
+                sx={{
+                  bgcolor: 'action.hover',
+                  '& .MuiToggleButtonGroup-grouped': {
+                    border: 0,
+                    px: 2.5,
+                    py: 0.75,
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    textTransform: 'capitalize',
+                    '&.Mui-selected': {
+                      bgcolor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        bgcolor: 'primary.dark',
+                        color: 'primary.contrastText'
+                      }
+                    }
+                  }
+                }}
+              >
+                <ToggleButton value="all">
+                  All Programs
+                </ToggleButton>
+                <ToggleButton value="dabi">
+                  Dabi
+                </ToggleButton>
+                <ToggleButton value="progoti">
+                  Progoti
+                </ToggleButton>
+              </ToggleButtonGroup>
+              
+              {!divisionalLoading && (
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', fontWeight: 700 }}>
+                  Active Program: <span style={{ textTransform: 'capitalize', color: theme.palette.primary.main }}>{divisionalProgram}</span>
+                </Typography>
+              )}
+            </Box>
+
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+                System Totals
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
+                    <Card sx={{ p: 1, borderRadius: 3 }}>
+                      <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
+                            Total Trainee
                           </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'secondary.light', color: 'secondary.main', flexShrink: 0 }}>
-                        <SchoolOutlined />
-                      </Box>
+                          {loading || divisionalLoading ? (
+                            <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
+                          ) : (
+                            <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                              {divisionalProgram === 'all' ? getStatsCards().trainees : totalTraineesFiltered}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'warning.light', color: 'warning.main', flexShrink: 0 }}>
+                          <PeopleAltOutlined />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
+                    <Card sx={{ p: 1, borderRadius: 3 }}>
+                      <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
+                            Total Regional Office
+                          </Typography>
+                          {loading ? (
+                            <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
+                          ) : (
+                            <Typography variant="h4" sx={{ fontWeight: 800 }}>
+                              {getStatsCards().regionalOffices}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'primary.light', color: 'primary.main', flexShrink: 0 }}>
+                          <MapOutlined />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Dynamic Charts Section */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {/* Distribution Bar Chart */}
+              <Grid item xs={12} md={6}>
+                <motion.div variants={itemVariants}>
+                  <Card sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                    <CardContent>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>
+                        Division-wise Trainee Distribution
+                      </Typography>
+                      {divisionalLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                          <CircularProgress />
+                        </Box>
+                      ) : divisionStats.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                          No division data available.
+                        </Typography>
+                      ) : (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          {divisionStats.map(div => {
+                            const pct = (div.traineeCount / maxTrainees) * 100;
+                            return (
+                              <Box key={div.name} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Typography variant="body2" sx={{ width: 130, fontWeight: 700, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                  {div.name.replace(' Division', '')}
+                                </Typography>
+                                <Box sx={{ flexGrow: 1, height: 10, bgcolor: 'action.hover', borderRadius: 5, overflow: 'hidden', position: 'relative' }}>
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${pct}%` }}
+                                    transition={{ duration: 0.8, ease: "easeOut" }}
+                                    style={{
+                                      height: '100%',
+                                      borderRadius: 5,
+                                      background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`
+                                    }}
+                                  />
+                                </Box>
+                                <Typography variant="body2" sx={{ width: 50, fontWeight: 800, textAlign: 'right', color: 'primary.main' }}>
+                                  {div.traineeCount}
+                                </Typography>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
-                  <Card sx={{ p: 1, borderRadius: 3 }}>
-                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                          Total Trainees
-                        </Typography>
-                        {loading ? (
-                          <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
-                        ) : (
-                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            {getStatsCards().trainees}
+              {/* Stage Progress Stacked Bar Chart */}
+              <Grid item xs={12} md={6}>
+                <motion.div variants={itemVariants}>
+                  <Card sx={{ p: 2, borderRadius: 3, height: '100%' }}>
+                    <CardContent>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 3 }}>
+                        Overall Training Stages Progress
+                      </Typography>
+                      {divisionalLoading ? (
+                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                          <CircularProgress />
+                        </Box>
+                      ) : (
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
+                            Trainee Progress Ratio across all Divisions ({stageStats.total} Trainees)
                           </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'warning.light', color: 'warning.main', flexShrink: 0 }}>
-                        <PeopleAltOutlined />
-                      </Box>
+                          <Box sx={{ display: 'flex', height: 24, borderRadius: 2, overflow: 'hidden', bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', mb: 3 }}>
+                            {stageStats.basic > 0 && (
+                              <MuiTooltip title={`Basic: ${stageStats.basic} Trainees (${stageStats.basicPct.toFixed(1)}%)`} arrow>
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${stageStats.basicPct}%` }}
+                                  transition={{ duration: 0.8 }}
+                                  style={{ height: '100%', backgroundColor: theme.palette.info.main }}
+                                />
+                              </MuiTooltip>
+                            )}
+                            {stageStats.refresher_1 > 0 && (
+                              <MuiTooltip title={`Refresher 1: ${stageStats.refresher_1} Trainees (${stageStats.ref1Pct.toFixed(1)}%)`} arrow>
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${stageStats.ref1Pct}%` }}
+                                  transition={{ duration: 0.8, delay: 0.1 }}
+                                  style={{ height: '100%', backgroundColor: theme.palette.warning.main }}
+                                />
+                              </MuiTooltip>
+                            )}
+                            {stageStats.refresher_2 > 0 && (
+                              <MuiTooltip title={`Refresher 2: ${stageStats.refresher_2} Trainees (${stageStats.ref2Pct.toFixed(1)}%)`} arrow>
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${stageStats.ref2Pct}%` }}
+                                  transition={{ duration: 0.8, delay: 0.2 }}
+                                  style={{ height: '100%', backgroundColor: theme.palette.success.main }}
+                                />
+                              </MuiTooltip>
+                            )}
+                          </Box>
+                          
+                          {/* Legend / Stats */}
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'info.main' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Basic Stage</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                {stageStats.basic} ({stageStats.basicPct.toFixed(1)}%)
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'warning.main' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Refresher 1</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                {stageStats.refresher_1} ({stageStats.ref1Pct.toFixed(1)}%)
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Refresher 2</Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                {stageStats.refresher_2} ({stageStats.ref2Pct.toFixed(1)}%)
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
               </Grid>
             </Grid>
-          </Box>
 
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
-              Batch Status Breakdown
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
-                  <Card sx={{ p: 1, borderRadius: 3, borderLeft: '5px solid', borderLeftColor: 'success.main' }}>
-                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                          Active Batches
-                        </Typography>
-                        {loading ? (
-                          <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
-                        ) : (
-                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            {getStatsCards().activeBatches}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'success.light', color: 'success.main', flexShrink: 0 }}>
-                        <ClassOutlined />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
-                  <Card sx={{ p: 1, borderRadius: 3, borderLeft: '5px solid', borderLeftColor: 'info.main' }}>
-                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                          Completed Batches
-                        </Typography>
-                        {loading ? (
-                          <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
-                        ) : (
-                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            {getStatsCards().completedBatches}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'info.light', color: 'info.main', flexShrink: 0 }}>
-                        <ClassOutlined />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
-
-              <Grid item xs={12} md={4}>
-                <motion.div variants={itemVariants} whileHover={{ y: -5 }}>
-                  <Card sx={{ p: 1, borderRadius: 3, borderLeft: '5px solid', borderLeftColor: 'text.disabled' }}>
-                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="body2" color="text.secondary" gutterBottom sx={{ fontWeight: 600 }}>
-                          Inactive Batches
-                        </Typography>
-                        {loading ? (
-                          <CircularProgress size={24} thickness={5} sx={{ mt: 1 }} />
-                        ) : (
-                          <Typography variant="h4" sx={{ fontWeight: 800 }}>
-                            {getStatsCards().inactiveBatches}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ width: 48, height: 48, borderRadius: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover', color: 'text.secondary', flexShrink: 0 }}>
-                        <ClassOutlined />
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </Grid>
-            </Grid>
-          </Box>
-
-          {/* Cohort Breakdown */}
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
-              Cohort Breakdown
-            </Typography>
-            <Card sx={{ borderRadius: 3, p: 1 }}>
-              <CardContent sx={{ p: 1 }}>
-                {loading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                    <CircularProgress />
-                  </Box>
-                ) : getCohortMetrics().length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
-                    No cohort data available.
+            {/* Division-wise Breakdown */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h6" sx={{ fontWeight: 800, mb: 2 }}>
+                Division-wise Regional Office & Cohort Breakdown
+              </Typography>
+              {divisionalLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+                  <CircularProgress />
+                </Box>
+              ) : divisionStats.length === 0 ? (
+                <Card sx={{ borderRadius: 3, p: 4, textAlign: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    No regional office data available for the active program filter.
                   </Typography>
-                ) : (
-                  <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
-                    <Table size="small">
-                      <TableHead sx={{ bgcolor: 'action.hover' }}>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 800 }}>Cohort Code</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }}>Cohort Name</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }} align="right">Number of Batches</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }} align="right">Total Enrolled Trainees</TableCell>
-                          <TableCell sx={{ fontWeight: 800 }} align="right">Avg. Trainees / Batch</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {getCohortMetrics().map((cohort) => (
-                          <TableRow key={cohort.code} hover>
-                            <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
-                              {cohort.code}
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>
-                              {cohort.name}
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600 }}>
+                </Card>
+              ) : (
+                <Grid container spacing={4}>
+                  {divisionStats.map((div) => (
+                    <Grid item xs={12} key={div.name}>
+                      <motion.div variants={itemVariants}>
+                        <Card sx={{ borderRadius: 3, p: 2 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, px: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'primary.main' }}>
+                              {div.name}
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1.5 }}>
                               <Chip 
-                                label={cohort.batchCount} 
+                                label={`${div.officeCount} Regional Offices`} 
                                 size="small" 
-                                sx={{ fontWeight: 700, bgcolor: 'action.selected' }} 
+                                sx={{ fontWeight: 700, bgcolor: 'action.selected', color: 'text.primary' }} 
                               />
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 700 }}>
-                              {cohort.traineeCount}
-                            </TableCell>
-                            <TableCell align="right" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                              {cohort.batchCount > 0 ? (cohort.traineeCount / cohort.batchCount).toFixed(1) : '0.0'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </CardContent>
-            </Card>
-          </Box>
-        </motion.div>
-      )}
+                              <Chip 
+                                label={`${div.traineeCount} Trainees`} 
+                                size="small" 
+                                color="secondary"
+                                sx={{ fontWeight: 700 }} 
+                              />
+                            </Box>
+                          </Box>
+                          
+                          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                            <Table size="small">
+                              <TableHead sx={{ bgcolor: 'action.hover' }}>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 800, width: '25%' }}>Regional Office</TableCell>
+                                  <TableCell sx={{ fontWeight: 800, width: '25%' }}>Cohort</TableCell>
+                                  <TableCell sx={{ fontWeight: 800 }} align="right">Total Trainees</TableCell>
+                                  <TableCell sx={{ fontWeight: 800 }} align="right">Basic Stage</TableCell>
+                                  <TableCell sx={{ fontWeight: 800 }} align="right">Refresher 1</TableCell>
+                                  <TableCell sx={{ fontWeight: 800 }} align="right">Refresher 2</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {div.offices.map((office) => {
+                                  if (office.cohorts.length === 0) {
+                                    return (
+                                      <TableRow key={office.id} hover>
+                                        <TableCell sx={{ fontWeight: 600 }}>{office.name}</TableCell>
+                                        <TableCell sx={{ color: 'text.secondary', fontStyle: 'italic' }}>
+                                          No active cohorts
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 600 }}>0</TableCell>
+                                        <TableCell align="right">0</TableCell>
+                                        <TableCell align="right">0</TableCell>
+                                        <TableCell align="right">0</TableCell>
+                                      </TableRow>
+                                    );
+                                  }
+                                  return office.cohorts.map((coh, idx) => (
+                                    <TableRow key={`${office.id}-${coh.cohort_code}`} hover>
+                                      {idx === 0 ? (
+                                        <TableCell 
+                                          rowSpan={office.cohorts.length}
+                                          sx={{ 
+                                            fontWeight: 600, 
+                                            verticalAlign: 'middle',
+                                            borderRight: '1px solid',
+                                            borderColor: 'divider'
+                                          }}
+                                        >
+                                          {office.name}
+                                        </TableCell>
+                                      ) : null}
+                                      <TableCell sx={{ fontWeight: 500 }}>
+                                        {coh.cohort_code} - {coh.cohort_name}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                        {coh.total_trainees}
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        {coh.stages.basic > 0 ? (
+                                          <Link
+                                            component="button"
+                                            variant="body2"
+                                            onClick={() => handleStageClick(office.id, office.name, coh.cohort_code, 'basic')}
+                                            sx={{ 
+                                              fontWeight: 700, 
+                                              color: 'info.main',
+                                              textDecoration: 'underline',
+                                              '&:hover': { color: 'info.dark' }
+                                            }}
+                                          >
+                                            {coh.stages.basic}
+                                          </Link>
+                                        ) : (
+                                          '0'
+                                        )}
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        {coh.stages.refresher_1 > 0 ? (
+                                          <Link
+                                            component="button"
+                                            variant="body2"
+                                            onClick={() => handleStageClick(office.id, office.name, coh.cohort_code, 'refresher_1')}
+                                            sx={{ 
+                                              fontWeight: 700, 
+                                              color: 'warning.main',
+                                              textDecoration: 'underline',
+                                              '&:hover': { color: 'warning.dark' }
+                                            }}
+                                          >
+                                            {coh.stages.refresher_1}
+                                          </Link>
+                                        ) : (
+                                          '0'
+                                        )}
+                                      </TableCell>
+                                      <TableCell align="right">
+                                        {coh.stages.refresher_2 > 0 ? (
+                                          <Link
+                                            component="button"
+                                            variant="body2"
+                                            onClick={() => handleStageClick(office.id, office.name, coh.cohort_code, 'refresher_2')}
+                                            sx={{ 
+                                              fontWeight: 700, 
+                                              color: 'success.main',
+                                              textDecoration: 'underline',
+                                              '&:hover': { color: 'success.dark' }
+                                            }}
+                                          >
+                                            {coh.stages.refresher_2}
+                                          </Link>
+                                        ) : (
+                                          '0'
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  ));
+                                })}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </Card>
+                      </motion.div>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
+
+            {/* Drilldown Drawer */}
+            <Drawer
+              anchor="right"
+              open={drilldownOpen}
+              onClose={() => setDrilldownOpen(false)}
+              PaperProps={{
+                sx: { width: { xs: '100%', sm: 600 }, p: 3, bgcolor: 'background.default' }
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Box>
+                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                    Trainee List - {drilldownParams?.stageType?.replace('_', ' ')?.toUpperCase()}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 600 }}>
+                    Office: {drilldownParams?.officeName} • Cohort: {drilldownParams?.cohortCode}
+                  </Typography>
+                </Box>
+                <IconButton onClick={() => setDrilldownOpen(false)}>
+                  <Close />
+                </IconButton>
+              </Box>
+
+              <Divider sx={{ mb: 3 }} />
+
+              {drilldownLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
+                  <CircularProgress />
+                </Box>
+              ) : drilldownData.length === 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
+                  <Typography variant="body1" color="text.secondary" fontWeight={700}>
+                    No active trainees found in this stage.
+                  </Typography>
+                </Box>
+              ) : (
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Table size="small">
+                    <TableHead sx={{ bgcolor: 'action.hover' }}>
+                      <TableRow>
+                        <TableCell sx={{ fontWeight: 800 }}>Trainee Name</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>Contact Info</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }}>Batch Name</TableCell>
+                        <TableCell sx={{ fontWeight: 800 }} align="center">Program</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {drilldownData.map((trainee) => (
+                        <TableRow key={trainee.id} hover>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {trainee.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                              ID: {trainee.participant_id}
+                            </Typography>
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                              {trainee.email}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                              {trainee.phone}
+                            </Typography>
+                          </TableCell>
+                          <TableCell sx={{ py: 1.5 }}>
+                            <Link
+                              component="button"
+                              variant="body2"
+                              onClick={() => {
+                                setDrilldownOpen(false);
+                                navigate(`/batches/${trainee.batch_id}`);
+                              }}
+                              sx={{ 
+                                fontWeight: 700, 
+                                color: 'primary.main', 
+                                textDecoration: 'none',
+                                textAlign: 'left',
+                                '&:hover': { textDecoration: 'underline' }
+                              }}
+                            >
+                              {trainee.batch_name}
+                            </Link>
+                          </TableCell>
+                          <TableCell align="center" sx={{ py: 1.5 }}>
+                            <Chip 
+                              label={trainee.program} 
+                              size="small" 
+                              color={trainee.program === 'dabi' ? 'primary' : 'secondary'}
+                              sx={{ 
+                                fontSize: '0.65rem', 
+                                height: 18, 
+                                textTransform: 'uppercase',
+                                fontWeight: 800
+                              }} 
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Drawer>
+          </motion.div>
+        );
+      })()}
     </Box>
   );
 };

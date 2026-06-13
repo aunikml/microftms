@@ -14,10 +14,12 @@ class DashboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def overview(self, request):
         try:
+            from regional_office.models import RegionalOffice
             total_users = User.objects.count()
             total_trainers = User.objects.filter(role__in=[UserRole.TRAINER, UserRole.MASTER_TRAINER]).count()
             active_batches = Batch.objects.filter(status='active').count()
             total_participants = Participant.objects.count()
+            total_regional_offices = RegionalOffice.objects.count()
 
             
             # Serialize batches according to role access
@@ -33,7 +35,8 @@ class DashboardViewSet(viewsets.ViewSet):
                     "total_users": total_users,
                     "total_trainers": total_trainers,
                     "active_batches": active_batches,
-                    "total_participants": total_participants
+                    "total_participants": total_participants,
+                    "total_regional_offices": total_regional_offices
                 },
                 "batches": batch_serializer.data
             }
@@ -185,3 +188,53 @@ class DashboardViewSet(viewsets.ViewSet):
             return Response(results, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"detail": f"Failed to retrieve divisional overview data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='drilldown')
+    def drilldown(self, request):
+        try:
+            office_id = request.query_params.get('regional_office_id')
+            cohort_code = request.query_params.get('cohort_code')
+            stage_type = request.query_params.get('stage_type')
+            program = request.query_params.get('program', 'all')
+            
+            if not office_id or not cohort_code or not stage_type:
+                return Response({"detail": "Missing query parameters."}, status=status.HTTP_400_BAD_REQUEST)
+                
+            from regional_office.models import RegionalOffice
+            from batches.models import Participant
+            
+            participants = Participant.objects.filter(
+                regional_office_id=office_id,
+                batch__cohort__cohort_code=cohort_code
+            ).select_related('batch__cohort', 'regional_office').prefetch_related('batch__stages')
+            
+            if program and program.lower() != 'all':
+                participants = participants.filter(batch__program=program.lower())
+                
+            stage_order = {'basic': 1, 'refresher_1': 2, 'refresher_2': 3}
+            results = []
+            
+            for p in participants:
+                batch = p.batch
+                stages = [s for s in batch.stages.all() if s.status in ['scheduled', 'completed']]
+                if not stages:
+                    active_stage = 'basic'
+                else:
+                    latest = max(stages, key=lambda s: stage_order.get(s.stage_type, 0))
+                    active_stage = latest.stage_type
+                    
+                if active_stage == stage_type:
+                    results.append({
+                        "id": p.id,
+                        "participant_id": p.participant_id,
+                        "name": f"{p.first_name} {p.last_name}",
+                        "email": p.email,
+                        "phone": p.phone_number or "-",
+                        "batch_name": p.batch.batch_name,
+                        "batch_id": p.batch.id,
+                        "program": p.batch.program
+                    })
+                    
+            return Response(results, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"detail": f"Failed to retrieve drilldown data: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
