@@ -26,7 +26,9 @@ import {
   TableHead,
   TableRow,
   Paper,
-  Link
+  Link,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import { 
   PeopleAltOutlined, 
@@ -95,6 +97,7 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [divisionalOverviewData, setDivisionalOverviewData] = useState([]);
   const [divisionalLoading, setDivisionalLoading] = useState(true);
+  const [divisionalProgram, setDivisionalProgram] = useState('all');
 
   // Interactive Map States
   const [searchTerm, setSearchTerm] = useState('');
@@ -190,10 +193,10 @@ const Dashboard = () => {
     }
   };
 
-  const fetchDivisionalData = async () => {
+  const fetchDivisionalData = async (programValue = divisionalProgram) => {
     setDivisionalLoading(true);
     try {
-      const res = await api.get('dashboards/divisional-overview/');
+      const res = await api.get(`dashboards/divisional-overview/?program=${programValue}`);
       setDivisionalOverviewData(res.data);
     } catch (err) {
       console.error('Failed to load divisional overview data:', err);
@@ -208,8 +211,8 @@ const Dashboard = () => {
       return;
     }
     fetchDashboardData();
-    fetchDivisionalData();
-  }, [user, navigate]);
+    fetchDivisionalData(divisionalProgram);
+  }, [user, navigate, divisionalProgram]);
 
   // Compute unique divisions list for filters
   const getDivisions = () => {
@@ -1064,6 +1067,69 @@ const Dashboard = () => {
       {/* Tab Panel 2: Divisional Overview */}
       {activeDashboardTab === 1 && (
         <Box>
+          {/* Program Filter Toolbar */}
+          <Box 
+            sx={{ 
+              mb: 3, 
+              display: 'flex', 
+              gap: 2, 
+              flexWrap: 'wrap', 
+              alignItems: 'center',
+              bgcolor: 'background.paper',
+              p: 2,
+              borderRadius: 3,
+              boxShadow: (theme) => theme.palette.mode === 'dark' ? '0 4px 20px rgba(0,0,0,0.4)' : '0 4px 20px rgba(0,0,0,0.05)',
+              border: '1px solid',
+              borderColor: 'divider'
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'text.secondary' }}>
+              Filter Overview by Program:
+            </Typography>
+            <ToggleButtonGroup
+              value={divisionalProgram}
+              exclusive
+              onChange={(e, newProg) => {
+                if (newProg !== null) setDivisionalProgram(newProg);
+              }}
+              size="small"
+              sx={{
+                bgcolor: 'action.hover',
+                '& .MuiToggleButtonGroup-grouped': {
+                  border: 0,
+                  px: 2.5,
+                  py: 0.75,
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  textTransform: 'capitalize',
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '&:hover': {
+                      bgcolor: 'primary.dark',
+                    }
+                  }
+                }
+              }}
+            >
+              <ToggleButton value="all">
+                All Programs
+              </ToggleButton>
+              <ToggleButton value="dabi">
+                Dabi
+              </ToggleButton>
+              <ToggleButton value="progoti">
+                Progoti
+              </ToggleButton>
+            </ToggleButtonGroup>
+            
+            {!divisionalLoading && (
+              <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', fontWeight: 700 }}>
+                Active Program: <span style={{ textTransform: 'capitalize', color: theme.palette.primary.main }}>{divisionalProgram}</span>
+              </Typography>
+            )}
+          </Box>
+
           <Box sx={{ display: 'flex', gap: 3, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
             {/* Map View of All Regional Offices */}
             <Card sx={{ p: 0.5, height: 600, flexGrow: 1, display: 'flex', flexDirection: 'column', borderRadius: 3 }}>
@@ -1116,7 +1182,7 @@ const Dashboard = () => {
                           <Marker 
                             key={office.id} 
                             position={[lat, lng]}
-                            icon={createCustomIcon('completed')}
+                            icon={createCustomIcon(totalOfficeTrainees > 0 ? 'completed' : 'inactive')}
                           >
                             <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                               <Box sx={{ p: 0.25 }}>

@@ -107,11 +107,15 @@ class DashboardViewSet(viewsets.ViewSet):
             from regional_office.models import RegionalOffice
             from batches.models import Participant
             
+            program = request.query_params.get('program', 'all')
             offices = RegionalOffice.objects.all().select_related('division').prefetch_related('regional_managers')
             participants = Participant.objects.all().select_related(
                 'regional_office',
                 'batch__cohort'
             ).prefetch_related('batch__stages')
+            
+            if program and program.lower() != 'all':
+                participants = participants.filter(batch__program=program.lower())
             
             office_data = {}
             for office in offices:
