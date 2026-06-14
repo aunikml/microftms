@@ -108,6 +108,7 @@ const Dashboard = () => {
   const [drilldownLoading, setDrilldownLoading] = useState(false);
   const [drilldownData, setDrilldownData] = useState([]);
   const [drilldownParams, setDrilldownParams] = useState(null);
+  const [selectedScorecardDivisionTab, setSelectedScorecardDivisionTab] = useState(0);
 
   // Interactive Map States
   const [searchTerm, setSearchTerm] = useState('');
@@ -1707,14 +1708,42 @@ const Dashboard = () => {
                   </Typography>
                 </Card>
               ) : (
-                <Grid container spacing={4}>
-                  {divisionStats.map((div) => (
-                    <Grid item xs={12} key={div.name}>
-                      <motion.div variants={itemVariants}>
+                <Box>
+                  {/* Division Tabs */}
+                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+                    <Tabs 
+                      value={selectedScorecardDivisionTab >= divisionStats.length ? 0 : selectedScorecardDivisionTab} 
+                      onChange={(e, val) => setSelectedScorecardDivisionTab(val)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{
+                        '& .MuiTab-root': {
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          textTransform: 'capitalize'
+                        }
+                      }}
+                    >
+                      {divisionStats.map((div) => (
+                        <Tab 
+                          key={div.name} 
+                          label={`${div.name.replace(' Division', '')} (${div.traineeCount})`} 
+                        />
+                      ))}
+                    </Tabs>
+                  </Box>
+
+                  {/* Active Division Table */}
+                  {(() => {
+                    const div = divisionStats[selectedScorecardDivisionTab] || divisionStats[0];
+                    if (!div) return null;
+
+                    return (
+                      <motion.div key={div.name} variants={itemVariants} initial="hidden" animate="show">
                         <Card sx={{ borderRadius: 3, p: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, px: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, px: 1, flexWrap: 'wrap', gap: 1.5 }}>
                             <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'primary.main' }}>
-                              {div.name}
+                              {div.name} Detailed Breakdown
                             </Typography>
                             <Box sx={{ display: 'flex', gap: 1.5 }}>
                               <Chip 
@@ -1845,9 +1874,9 @@ const Dashboard = () => {
                           </TableContainer>
                         </Card>
                       </motion.div>
-                    </Grid>
-                  ))}
-                </Grid>
+                    );
+                  })()}
+                </Box>
               )}
             </Box>
 
