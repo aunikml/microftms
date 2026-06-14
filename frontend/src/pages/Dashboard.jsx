@@ -78,6 +78,24 @@ const createCustomIcon = (status) => {
   });
 };
 
+// Custom icon helper for showing office trainee counts
+const createOfficeCountIcon = (count) => {
+  const isZero = count === 0;
+  const statusClass = isZero ? 'marker-inactive' : 'marker-active';
+  
+  return L.divIcon({
+    className: 'custom-marker-office',
+    html: `<div class="office-marker-container ${statusClass}">
+             <div class="office-marker-badge">
+               <span class="office-marker-text">${count}</span>
+             </div>
+           </div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18]
+  });
+};
+
 // Predefined coordinates for division centers
 const DIVISION_CENTERS = {
   'dhaka division': [23.8103, 90.4125],
@@ -1233,7 +1251,7 @@ const Dashboard = () => {
                           <Marker 
                             key={office.id} 
                             position={[lat, lng]}
-                            icon={createCustomIcon(totalOfficeTrainees > 0 ? 'completed' : 'inactive')}
+                            icon={createOfficeCountIcon(totalOfficeTrainees)}
                           >
                             <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                               <Box sx={{ p: 0.25 }}>
