@@ -896,19 +896,31 @@ const Dashboard = () => {
                             <Popup>
                               <Box sx={{ p: 0.5, minWidth: 220 }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                                  <Typography 
-                                    variant="subtitle2" 
-                                    sx={{ 
-                                      fontWeight: 800, 
-                                      color: 'primary.main',
-                                      cursor: 'pointer',
-                                      '&:hover': { textDecoration: 'underline' },
-                                      mr: 1
-                                    }}
-                                    onClick={() => navigate(`/batches/${batch.id}`)}
-                                  >
-                                    {batch.batch_name}
-                                  </Typography>
+                                  {user?.role === 'program_supervisor' ? (
+                                    <Typography 
+                                      variant="subtitle2" 
+                                      sx={{ 
+                                        fontWeight: 800, 
+                                        mr: 1
+                                      }}
+                                    >
+                                      {batch.batch_name}
+                                    </Typography>
+                                  ) : (
+                                    <Typography 
+                                      variant="subtitle2" 
+                                      sx={{ 
+                                        fontWeight: 800, 
+                                        color: 'primary.main',
+                                        cursor: 'pointer',
+                                        '&:hover': { textDecoration: 'underline' },
+                                        mr: 1
+                                      }}
+                                      onClick={() => navigate(`/batches/${batch.id}`)}
+                                    >
+                                      {batch.batch_name}
+                                    </Typography>
+                                  )}
                                   <Chip 
                                     label={batch.status} 
                                     size="small" 
@@ -1964,23 +1976,29 @@ const Dashboard = () => {
                             </Typography>
                           </TableCell>
                           <TableCell sx={{ py: 1.5 }}>
-                            <Link
-                              component="button"
-                              variant="body2"
-                              onClick={() => {
-                                setDrilldownOpen(false);
-                                navigate(`/batches/${trainee.batch_id}`);
-                              }}
-                              sx={{ 
-                                fontWeight: 700, 
-                                color: 'primary.main', 
-                                textDecoration: 'none',
-                                textAlign: 'left',
-                                '&:hover': { textDecoration: 'underline' }
-                              }}
-                            >
-                              {trainee.batch_name}
-                            </Link>
+                            {user?.role === 'program_supervisor' ? (
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {trainee.batch_name}
+                              </Typography>
+                            ) : (
+                              <Link
+                                component="button"
+                                variant="body2"
+                                onClick={() => {
+                                  setDrilldownOpen(false);
+                                  navigate(`/batches/${trainee.batch_id}`);
+                                }}
+                                sx={{ 
+                                  fontWeight: 700, 
+                                  color: 'primary.main', 
+                                  textDecoration: 'none',
+                                  textAlign: 'left',
+                                  '&:hover': { textDecoration: 'underline' }
+                                }}
+                              >
+                                {trainee.batch_name}
+                              </Link>
+                            )}
                           </TableCell>
                           <TableCell align="center" sx={{ py: 1.5 }}>
                             <Chip 

@@ -73,6 +73,17 @@ const DashboardLayout = ({ children }) => {
       ];
     }
 
+    if (user?.role === 'program_supervisor') {
+      return [
+        { 
+          text: 'Dashboard', 
+          icon: <DashboardIcon />, 
+          path: '/dashboard', 
+          roles: ['program_supervisor'] 
+        }
+      ];
+    }
+
     const isTrainer = ['trainer', 'master_trainer'].includes(user?.role);
     const items = [
       { 

@@ -180,7 +180,7 @@ const AppContent = () => {
         <Route 
           path="/trainers" 
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'program_supervisor']}>
+            <ProtectedRoute allowedRoles={['super_admin']}>
               <DashboardLayout>
                 <Box sx={{ p: 2 }}>
                   <Typography variant="h4" sx={{ fontWeight: 800, mb: 1 }}>Trainer Management</Typography>
@@ -194,7 +194,7 @@ const AppContent = () => {
         <Route 
           path="/rm-dashboard" 
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'program_supervisor', 'regional_manager']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'regional_manager']}>
               <DashboardLayout>
                 <RegionalManagerDashboard />
               </DashboardLayout>
@@ -205,7 +205,7 @@ const AppContent = () => {
         <Route 
           path="/trainees" 
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'program_supervisor', 'batch_manager']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'batch_manager']}>
               <DashboardLayout>
                 <TraineeManagement />
               </DashboardLayout>
@@ -216,7 +216,7 @@ const AppContent = () => {
         <Route 
           path="/cohorts" 
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'program_supervisor', 'batch_manager']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'batch_manager']}>
               <DashboardLayout>
                 <CohortManagement />
               </DashboardLayout>
@@ -227,7 +227,7 @@ const AppContent = () => {
         <Route 
           path="/batches/:id" 
           element={
-            <ProtectedRoute allowedRoles={['super_admin', 'program_supervisor', 'batch_manager', 'trainer', 'master_trainer']}>
+            <ProtectedRoute allowedRoles={['super_admin', 'batch_manager', 'trainer', 'master_trainer']}>
               <DashboardLayout>
                 <BatchDetail />
               </DashboardLayout>
@@ -238,7 +238,7 @@ const AppContent = () => {
         <Route 
           path="/calendar" 
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['super_admin', 'batch_manager', 'trainer', 'master_trainer', 'regional_manager', 'logistic_manager']}>
               <DashboardLayout>
                 <Calendar />
               </DashboardLayout>
