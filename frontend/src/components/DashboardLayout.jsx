@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import logo from '../assets/logo.png';
 import {
   Box,
   Drawer,
@@ -135,25 +136,21 @@ const DashboardLayout = ({ children }) => {
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
       {/* Brand Header */}
-      <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <Box 
+          component="img"
+          src={logo}
+          alt="BRAC IED Logo"
           sx={{ 
-            width: 38, 
-            height: 38, 
-            borderRadius: '10px', 
-            background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 800
+            maxWidth: '100%', 
+            height: 40,
+            objectFit: 'contain',
+            borderRadius: '6px',
+            p: 0.5,
+            bgcolor: '#ffffff',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
           }}
-        >
-          T
-        </Box>
-        <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
-          TMS Panel
-        </Typography>
+        />
       </Box>
 
       <Divider sx={{ opacity: 0.6 }} />

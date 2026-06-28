@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import logo from '../assets/logo.png';
 import { 
   Box, 
   Card, 
@@ -94,27 +95,26 @@ const Login = () => {
         <Card sx={{ width: '100%', maxWidth: 450, overflow: 'visible', p: 1 }}>
           <CardContent>
             {/* Header / Brand */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4, mt: 1 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3, mt: 1 }}>
               <motion.div
-                whileHover={{ scale: 1.1, rotate: 10 }}
-                whileTap={{ scale: 0.9 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
               >
                 <Box 
+                  component="img"
+                  src={logo}
+                  alt="BRAC IED Logo"
                   sx={{ 
-                    width: 56, 
-                    height: 56, 
-                    borderRadius: '16px', 
-                    background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)',
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    color: '#fff',
+                    maxHeight: 70,
+                    maxWidth: 240,
+                    objectFit: 'contain',
                     mb: 2,
-                    boxShadow: '0 8px 16px rgba(79, 70, 229, 0.3)'
+                    borderRadius: '8px',
+                    p: 1.5,
+                    bgcolor: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
                   }}
-                >
-                  <SchoolOutlined fontSize="large" />
-                </Box>
+                />
               </motion.div>
               <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 800, letterSpacing: '-0.5px' }}>
                 TMS Login
