@@ -501,8 +501,10 @@ const Dashboard = () => {
               value={traineeSearchTerm}
               onChange={(e) => setTraineeSearchTerm(e.target.value)}
               placeholder="e.g. PART-C..."
-              InputProps={{
-                endAdornment: traineeSearchLoading && <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+              slotProps={{
+                input: {
+                  endAdornment: traineeSearchLoading ? <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} /> : null
+                }
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -578,6 +580,7 @@ const Dashboard = () => {
                               )}
                             </Box>
                           }
+                          secondaryTypographyProps={{ component: 'div' }}
                         />
                       </ListItemButton>
                     </ListItem>
@@ -634,7 +637,7 @@ const Dashboard = () => {
             {/* Dialog Header Banner with Brand Colors */}
             <Box 
               sx={{ 
-                background: mode === 'light'
+                background: !isDarkMode
                   ? 'linear-gradient(135deg, #be123c 0%, #ea580c 100%)'
                   : 'linear-gradient(135deg, #881337 0%, #7c2d12 100%)',
                 p: 3, 
