@@ -273,8 +273,17 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), IsPasswordChanged()]
 
     def get_queryset(self):
-        # Allow filtering by batch ID in query params
         queryset = self.queryset
+        
+        search_query = self.request.query_params.get('search')
+        if search_query:
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(participant_id__icontains=search_query) |
+                Q(first_name__icontains=search_query) |
+                Q(last_name__icontains=search_query)
+            )
+            
         batch_id = self.request.query_params.get('batch')
         if batch_id:
             queryset = queryset.filter(batch_id=batch_id)

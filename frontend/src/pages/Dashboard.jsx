@@ -31,7 +31,11 @@ import {
   ToggleButtonGroup,
   Tooltip as MuiTooltip,
   Drawer,
-  IconButton
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText
 } from '@mui/material';
 import { 
   PeopleAltOutlined, 
@@ -431,7 +435,6 @@ const Dashboard = () => {
     return sum;
   }, [divisionalOverviewData]);
 
-  // Zoom/pan to division center when a division in the list is clicked
   const handleDivisionSelect = (divisionName) => {
     const cleanName = divisionName.toLowerCase().replace('division', '').trim();
     
@@ -449,6 +452,344 @@ const Dashboard = () => {
     }
   };
 
+  const [traineeSearchTerm, setTraineeSearchTerm] = useState('');
+  const [traineeSearchResults, setTraineeSearchResults] = useState([]);
+  const [traineeSearchLoading, setTraineeSearchLoading] = useState(false);
+  const [selectedTrainee, setSelectedTrainee] = useState(null);
+  const [traineeDetailsOpen, setTraineeDetailsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!traineeSearchTerm.trim()) {
+      setTraineeSearchResults([]);
+      return;
+    }
+    const delayDebounce = setTimeout(async () => {
+      setTraineeSearchLoading(true);
+      try {
+        const res = await api.get(`participants/?search=${encodeURIComponent(traineeSearchTerm)}`);
+        setTraineeSearchResults(res.data);
+      } catch (err) {
+        console.error("Error searching trainees:", err);
+      } finally {
+        setTraineeSearchLoading(false);
+      }
+    }, 450);
+    return () => clearTimeout(delayDebounce);
+  }, [traineeSearchTerm]);
+
+  const renderTraineeSearchWidget = () => (
+    <Box sx={{ mb: 4 }}>
+      <Card sx={{ p: 1, overflow: 'visible', borderRadius: 3 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ fontWeight: 800, mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PeopleAltOutlined color="primary" /> Trainee Search
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Search for a trainee by ID/PIN, first name, or last name to view their profile, batch, cohort, and attendance record.
+          </Typography>
+          
+          <Box sx={{ position: 'relative', width: '100%', maxWidth: 500 }}>
+            <TextField
+              fullWidth
+              label="Enter Trainee PIN/ID or Name"
+              variant="outlined"
+              size="small"
+              value={traineeSearchTerm}
+              onChange={(e) => setTraineeSearchTerm(e.target.value)}
+              placeholder="e.g. PART-C..."
+              InputProps={{
+                endAdornment: traineeSearchLoading && <CircularProgress size={20} color="inherit" sx={{ mr: 1 }} />
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px'
+                }
+              }}
+            />
+            
+            {/* Auto-suggest dropdown */}
+            {traineeSearchResults.length > 0 && (
+              <Paper 
+                elevation={6} 
+                sx={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  left: 0, 
+                  right: 0, 
+                  zIndex: 1100, 
+                  mt: 1, 
+                  maxHeight: 300, 
+                  overflowY: 'auto',
+                  borderRadius: '10px',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  bgcolor: 'background.paper'
+                }}
+              >
+                <List disablePadding>
+                  {traineeSearchResults.map((trainee) => (
+                    <ListItem 
+                      key={trainee.id} 
+                      disablePadding
+                      sx={{
+                        borderBottom: '1px solid',
+                        borderColor: 'divider',
+                        '&:last-child': { borderBottom: 'none' }
+                      }}
+                    >
+                      <ListItemButton 
+                        onClick={() => {
+                          setSelectedTrainee(trainee);
+                          setTraineeDetailsOpen(true);
+                          setTraineeSearchTerm('');
+                          setTraineeSearchResults([]);
+                        }}
+                        sx={{ py: 1.5 }}
+                      >
+                        <ListItemText 
+                          primary={
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                              {trainee.first_name} {trainee.last_name}
+                            </Typography>
+                          }
+                          secondary={
+                            <Box sx={{ display: 'flex', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                              <Chip 
+                                label={trainee.participant_id} 
+                                size="small" 
+                                sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: 'action.hover' }} 
+                              />
+                              {trainee.cohort_code && (
+                                <Chip 
+                                  label={`Cohort: ${trainee.cohort_code}`} 
+                                  size="small" 
+                                  variant="outlined"
+                                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 600 }} 
+                                />
+                              )}
+                              {trainee.regional_office_details?.name && (
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', ml: 0.5 }}>
+                                  RO: {trainee.regional_office_details.name}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            )}
+
+            {traineeSearchTerm.trim() && !traineeSearchLoading && traineeSearchResults.length === 0 && (
+              <Paper 
+                elevation={2} 
+                sx={{ 
+                  position: 'absolute', 
+                  top: '100%', 
+                  left: 0, 
+                  right: 0, 
+                  zIndex: 1100, 
+                  mt: 1, 
+                  p: 2, 
+                  borderRadius: '10px',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  textAlign: 'center',
+                  bgcolor: 'background.paper'
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  No trainees found matching "{traineeSearchTerm}"
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* Trainee Details Drawer */}
+      <Drawer
+        anchor="right"
+        open={traineeDetailsOpen}
+        onClose={() => setTraineeDetailsOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: '100%', sm: 500 }, p: 3.5, bgcolor: 'background.default' }
+        }}
+      >
+        {selectedTrainee && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Drawer Header */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Box>
+                <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", "Plus Jakarta Sans", sans-serif', letterSpacing: '-0.5px' }}>
+                  Trainee Profile
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 700 }}>
+                  ID: {selectedTrainee.participant_id}
+                </Typography>
+              </Box>
+              <IconButton onClick={() => setTraineeDetailsOpen(false)}>
+                <Close />
+              </IconButton>
+            </Box>
+
+            <Divider sx={{ mb: 4 }} />
+
+            {/* Profile Content */}
+            <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 0.5 }}>
+              <Card variant="outlined" sx={{ mb: 3, borderRadius: 2.5, bgcolor: 'background.paper' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Personal Information
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Full Name
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                        {selectedTrainee.first_name} {selectedTrainee.last_name}
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Email Address
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-all' }}>
+                        {selectedTrainee.email}
+                      </Typography>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Phone Number
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {selectedTrainee.phone_number || 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              <Card variant="outlined" sx={{ mb: 3, borderRadius: 2.5, bgcolor: 'background.paper' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Cohort & Program Details
+                  </Typography>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Cohort
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {selectedTrainee.cohort_name || 'N/A'} ({selectedTrainee.cohort_code || 'N/A'})
+                      </Typography>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Program
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
+                        {selectedTrainee.program || 'N/A'}
+                      </Typography>
+                    </Grid>
+
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
+                        Regional Office
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {selectedTrainee.regional_office_details?.name || 'N/A'}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* Attendance Details Card */}
+              <Card variant="outlined" sx={{ borderRadius: 2.5, bgcolor: 'background.paper' }}>
+                <CardContent sx={{ p: 2.5 }}>
+                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Training Attendance Summary
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                    {['basic', 'refresher_1', 'refresher_2'].map((stageKey) => {
+                      const stageData = selectedTrainee.attendance_by_stage?.[stageKey] || {
+                        status: 'Pending',
+                        present: 0,
+                        absent: 0,
+                        late: 0,
+                        total: 0
+                      };
+                      
+                      let label = 'Basic';
+                      if (stageKey === 'refresher_1') label = 'Refresher 1';
+                      if (stageKey === 'refresher_2') label = 'Refresher 2';
+
+                      let statusColor = 'default';
+                      if (stageData.status.toLowerCase() === 'completed') statusColor = 'success';
+                      if (stageData.status.toLowerCase() === 'scheduled') statusColor = 'warning';
+
+                      return (
+                        <Box key={stageKey} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                              {label}
+                            </Typography>
+                            <Chip 
+                              label={stageData.status} 
+                              size="small" 
+                              color={statusColor}
+                              sx={{ fontSize: '0.7rem', fontWeight: 700, height: 20 }}
+                            />
+                          </Box>
+                          <Grid container spacing={1} sx={{ mt: 0.5 }}>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
+                                Present
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                                {stageData.present} {stageData.present === 1 ? 'day' : 'days'}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
+                                Absent
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.main' }}>
+                                {stageData.absent} {stageData.absent === 1 ? 'day' : 'days'}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
+                                Late
+                              </Typography>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.main' }}>
+                                {stageData.late} {stageData.late === 1 ? 'day' : 'days'}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
+        )}
+      </Drawer>
+    </Box>
+  );
+
   const isTrainerRole = ['trainer', 'master_trainer'].includes(user?.role);
 
   if (isTrainerRole) {
@@ -462,6 +803,8 @@ const Dashboard = () => {
             Role: <strong style={{ textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</strong>
           </Typography>
         </Box>
+
+        {renderTraineeSearchWidget()}
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
@@ -759,6 +1102,8 @@ const Dashboard = () => {
           Role: <strong style={{ textTransform: 'capitalize' }}>{user?.role?.replace('_', ' ')}</strong>
         </Typography>
       </Box>
+
+      {renderTraineeSearchWidget()}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>

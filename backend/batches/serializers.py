@@ -100,14 +100,47 @@ class ParticipantSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True
     )
+    cohort_name = serializers.CharField(source='batch.cohort.name', read_only=True)
+    cohort_code = serializers.CharField(source='batch.cohort.cohort_code', read_only=True)
+    batch_name = serializers.CharField(source='batch.batch_name', read_only=True)
+    program = serializers.CharField(source='batch.program', read_only=True)
+    attendance_by_stage = serializers.SerializerMethodField()
 
     class Meta:
         model = Participant
         fields = [
             'id', 'participant_id', 'batch', 'first_name', 'last_name', 
-            'email', 'phone_number', 'regional_office', 'regional_office_details'
+            'email', 'phone_number', 'regional_office', 'regional_office_details',
+            'cohort_name', 'cohort_code', 'batch_name', 'program', 'attendance_by_stage'
         ]
         read_only_fields = ['id', 'participant_id']
+
+    def get_attendance_by_stage(self, obj):
+        stages = {
+            'basic': {'present': 0, 'absent': 0, 'late': 0, 'total': 0},
+            'refresher_1': {'present': 0, 'absent': 0, 'late': 0, 'total': 0},
+            'refresher_2': {'present': 0, 'absent': 0, 'late': 0, 'total': 0},
+        }
+        
+        attendance_records = obj.attendance_records.select_related('stage').all()
+        for record in attendance_records:
+            if record.stage:
+                stype = record.stage.stage_type
+                if stype in stages:
+                    stages[stype]['total'] += 1
+                    if record.status == 'present':
+                        stages[stype]['present'] += 1
+                    elif record.status == 'absent':
+                        stages[stype]['absent'] += 1
+                    elif record.status == 'late':
+                        stages[stype]['late'] += 1
+                        
+        batch_stages = obj.batch.stages.all()
+        stage_statuses = {s.stage_type: s.get_status_display() for s in batch_stages}
+        for stype in stages:
+            stages[stype]['status'] = stage_statuses.get(stype, 'Pending')
+            
+        return stages
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
