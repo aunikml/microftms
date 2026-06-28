@@ -32,7 +32,8 @@ import {
   DialogActions,
   IconButton,
   Divider,
-  useTheme
+  useTheme,
+  Button
 } from '@mui/material';
 import {
   Search,
@@ -708,12 +709,14 @@ const RegionalManagerDashboard = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               sx={{ flexGrow: 1, maxWidth: 500, minWidth: 250 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search color="action" fontSize="small" />
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Search color="action" fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
             
