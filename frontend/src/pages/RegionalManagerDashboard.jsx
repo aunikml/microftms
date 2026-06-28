@@ -762,7 +762,23 @@ const RegionalManagerDashboard = () => {
                 ) : (
                   filteredTrainees.map((t) => (
                     <TableRow key={t.id} hover>
-                      <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>
+                      <TableCell 
+                        sx={{ 
+                          fontWeight: 700, 
+                          color: 'primary.main', 
+                          cursor: 'pointer',
+                          '&:hover': { textDecoration: 'underline' }
+                        }}
+                        onClick={async () => {
+                          try {
+                            const res = await api.get(`participants/${t.id}/`);
+                            setSelectedTrainee(res.data);
+                            setTraineeDetailsOpen(true);
+                          } catch (err) {
+                            console.error("Error loading trainee details:", err);
+                          }
+                        }}
+                      >
                         {t.participant_id}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 600 }}>{t.name}</TableCell>
