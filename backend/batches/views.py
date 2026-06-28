@@ -274,6 +274,11 @@ class ParticipantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = self.queryset
+        user = self.request.user
+        
+        # Access control: Regional Managers can only query participants in their regional offices
+        if user and user.is_authenticated and user.role == UserRole.REGIONAL_MANAGER:
+            queryset = queryset.filter(regional_office__regional_managers=user)
         
         search_query = self.request.query_params.get('search')
         if search_query:
