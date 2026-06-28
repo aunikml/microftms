@@ -35,7 +35,11 @@ import {
   List,
   ListItem,
   ListItemButton,
-  ListItemText
+  ListItemText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { 
   PeopleAltOutlined, 
@@ -609,42 +613,57 @@ const Dashboard = () => {
         </CardContent>
       </Card>
 
-      {/* Trainee Details Drawer */}
-      <Drawer
-        anchor="right"
+      {/* Trainee Details Dialog */}
+      <Dialog
         open={traineeDetailsOpen}
         onClose={() => setTraineeDetailsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        scroll="paper"
         PaperProps={{
-          sx: { width: { xs: '100%', sm: 500 }, p: 3.5, bgcolor: 'background.default' }
+          sx: { 
+            borderRadius: '20px', 
+            overflow: 'hidden', 
+            boxShadow: '0 24px 48px rgba(0,0,0,0.15)',
+            bgcolor: 'background.paper'
+          }
         }}
       >
         {selectedTrainee && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Drawer Header */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", "Plus Jakarta Sans", sans-serif', letterSpacing: '-0.5px' }}>
-                  Trainee Profile
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontWeight: 700 }}>
-                  ID: {selectedTrainee.participant_id}
-                </Typography>
-              </Box>
-              <IconButton onClick={() => setTraineeDetailsOpen(false)}>
+          <>
+            {/* Dialog Header Banner with Brand Colors */}
+            <Box 
+              sx={{ 
+                background: mode === 'light'
+                  ? 'linear-gradient(135deg, #be123c 0%, #ea580c 100%)'
+                  : 'linear-gradient(135deg, #881337 0%, #7c2d12 100%)',
+                p: 3, 
+                color: '#fff',
+                position: 'relative'
+              }}
+            >
+              <IconButton 
+                onClick={() => setTraineeDetailsOpen(false)}
+                sx={{ position: 'absolute', top: 16, right: 16, color: '#fff' }}
+              >
                 <Close />
               </IconButton>
+              
+              <Typography variant="h5" sx={{ fontWeight: 800, fontFamily: '"Outfit", "Plus Jakarta Sans", sans-serif', letterSpacing: '-0.5px', mb: 0.5 }}>
+                Trainee Profile
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.85, fontWeight: 600 }}>
+                PIN: {selectedTrainee.participant_id}
+              </Typography>
             </Box>
 
-            <Divider sx={{ mb: 4 }} />
-
-            {/* Profile Content */}
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', pr: 0.5 }}>
-              <Card variant="outlined" sx={{ mb: 3, borderRadius: 2.5, bgcolor: 'background.paper' }}>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Personal Information
-                  </Typography>
-                  
+            <DialogContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Personal Information */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 1.5, textTransform: 'uppercase', letterSpacing: '0.8px', fontSize: '0.75rem' }}>
+                  Personal Information
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
@@ -673,35 +692,26 @@ const Dashboard = () => {
                       </Typography>
                     </Grid>
                   </Grid>
-                </CardContent>
-              </Card>
+                </Paper>
+              </Box>
 
-              <Card variant="outlined" sx={{ mb: 3, borderRadius: 2.5, bgcolor: 'background.paper' }}>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Cohort & Program Details
-                  </Typography>
-                  
+              {/* Cohort & Office Information */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 1.5, textTransform: 'uppercase', letterSpacing: '0.8px', fontSize: '0.75rem' }}>
+                  Academic & Geography
+                </Typography>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px', bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                   <Grid container spacing={2}>
                     <Grid item xs={12} sm={6}>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
-                        Cohort
+                        Cohort / Program
                       </Typography>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {selectedTrainee.cohort_name || 'N/A'} ({selectedTrainee.cohort_code || 'N/A'})
+                        {selectedTrainee.cohort_name || 'N/A'} ({selectedTrainee.cohort_code || 'N/A'}) • <span style={{ textTransform: 'capitalize' }}>{selectedTrainee.program || 'N/A'}</span>
                       </Typography>
                     </Grid>
 
                     <Grid item xs={12} sm={6}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
-                        Program
-                      </Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'capitalize' }}>
-                        {selectedTrainee.program || 'N/A'}
-                      </Typography>
-                    </Grid>
-
-                    <Grid item xs={12}>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600 }}>
                         Regional Office
                       </Typography>
@@ -710,83 +720,117 @@ const Dashboard = () => {
                       </Typography>
                     </Grid>
                   </Grid>
-                </CardContent>
-              </Card>
+                </Paper>
+              </Box>
 
-              {/* Attendance Details Card */}
-              <Card variant="outlined" sx={{ borderRadius: 2.5, bgcolor: 'background.paper' }}>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Training Attendance Summary
-                  </Typography>
+              {/* Attendance Breakdown */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 800, mb: 1.5, textTransform: 'uppercase', letterSpacing: '0.8px', fontSize: '0.75rem' }}>
+                  Training Attendance Summary
+                </Typography>
+                
+                <Grid container spacing={2}>
+                  {['basic', 'refresher_1', 'refresher_2'].map((stageKey) => {
+                    const stageData = selectedTrainee.attendance_by_stage?.[stageKey] || {
+                      status: 'Pending',
+                      present: 0,
+                      absent: 0,
+                      late: 0,
+                      total: 0
+                    };
+                    
+                    let label = 'Basic';
+                    if (stageKey === 'refresher_1') label = 'Refresher 1';
+                    if (stageKey === 'refresher_2') label = 'Refresher 2';
 
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                    {['basic', 'refresher_1', 'refresher_2'].map((stageKey) => {
-                      const stageData = selectedTrainee.attendance_by_stage?.[stageKey] || {
-                        status: 'Pending',
-                        present: 0,
-                        absent: 0,
-                        late: 0,
-                        total: 0
-                      };
-                      
-                      let label = 'Basic';
-                      if (stageKey === 'refresher_1') label = 'Refresher 1';
-                      if (stageKey === 'refresher_2') label = 'Refresher 2';
+                    let statusColor = 'default';
+                    if (stageData.status.toLowerCase() === 'completed') statusColor = 'success';
+                    if (stageData.status.toLowerCase() === 'scheduled') statusColor = 'warning';
 
-                      let statusColor = 'default';
-                      if (stageData.status.toLowerCase() === 'completed') statusColor = 'success';
-                      if (stageData.status.toLowerCase() === 'scheduled') statusColor = 'warning';
-
-                      return (
-                        <Box key={stageKey} sx={{ p: 1.5, borderRadius: 2, bgcolor: 'action.hover' }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    return (
+                      <Grid item xs={12} md={4} key={stageKey}>
+                        <Paper 
+                          variant="outlined" 
+                          sx={{ 
+                            p: 2, 
+                            borderRadius: '12px', 
+                            height: '100%', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: 1.5,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {/* Mini decorative accent border matching status */}
+                          <Box 
+                            sx={{ 
+                              position: 'absolute', 
+                              top: 0, 
+                              left: 0, 
+                              right: 0, 
+                              height: 4, 
+                              bgcolor: stageData.status.toLowerCase() === 'completed' ? 'success.main' : 
+                                       stageData.status.toLowerCase() === 'scheduled' ? 'warning.main' : 'text.disabled'
+                            }}
+                          />
+                          
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
                               {label}
                             </Typography>
+                          </Box>
+                          
+                          <Box sx={{ mt: 'auto' }}>
                             <Chip 
                               label={stageData.status} 
                               size="small" 
                               color={statusColor}
-                              sx={{ fontSize: '0.7rem', fontWeight: 700, height: 20 }}
+                              sx={{ fontSize: '0.65rem', fontWeight: 800, height: 18, mb: 1.5 }}
                             />
+                            
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="caption" color="text.secondary">Present:</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'success.main' }}>{stageData.present}d</Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="caption" color="text.secondary">Absent:</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'error.main' }}>{stageData.absent}d</Typography>
+                              </Box>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <Typography variant="caption" color="text.secondary">Late:</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 700, color: 'warning.main' }}>{stageData.late}d</Typography>
+                              </Box>
+                            </Box>
                           </Box>
-                          <Grid container spacing={1} sx={{ mt: 0.5 }}>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
-                                Present
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
-                                {stageData.present} {stageData.present === 1 ? 'day' : 'days'}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
-                                Absent
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'error.main' }}>
-                                {stageData.absent} {stageData.absent === 1 ? 'day' : 'days'}
-                              </Typography>
-                            </Grid>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 500 }}>
-                                Late
-                              </Typography>
-                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                                {stageData.late} {stageData.late === 1 ? 'day' : 'days'}
-                              </Typography>
-                            </Grid>
-                          </Grid>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
+                        </Paper>
+                      </Grid>
+                    );
+                  })}
+                </Grid>
+              </Box>
+            </DialogContent>
+
+            <DialogActions sx={{ p: 2.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+              <Button 
+                onClick={() => setTraineeDetailsOpen(false)} 
+                variant="outlined" 
+                sx={{ 
+                  borderRadius: '10px', 
+                  fontWeight: 700, 
+                  px: 3,
+                  textTransform: 'none'
+                }}
+              >
+                Close Profile
+              </Button>
+            </DialogActions>
+          </>
         )}
-      </Drawer>
+      </Dialog>
     </Box>
   );
 
