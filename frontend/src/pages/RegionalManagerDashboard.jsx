@@ -547,6 +547,8 @@ const RegionalManagerDashboard = () => {
         </Typography>
       </Box>
 
+      {renderTraineeSearchWidget()}
+
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       {/* Metrics Row */}
