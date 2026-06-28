@@ -702,44 +702,6 @@ const RegionalManagerDashboard = () => {
       {/* Main List */}
       <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: 'none' }}>
         <CardContent sx={{ p: 0 }}>
-          <Box sx={{ p: 2.5, display: 'flex', gap: 2, alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            <TextField
-              size="small"
-              placeholder="Search trainees by ID, name, office, batch..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              sx={{ flexGrow: 1, maxWidth: 500, minWidth: 250 }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search color="action" fontSize="small" />
-                    </InputAdornment>
-                  ),
-                }
-              }}
-            />
-            
-            <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel id="cohort-filter-label">Filter by Cohort</InputLabel>
-              <Select
-                labelId="cohort-filter-label"
-                id="cohort-filter"
-                value={selectedCohort}
-                label="Filter by Cohort"
-                onChange={(e) => setSelectedCohort(e.target.value)}
-              >
-                <MenuItem value="All">
-                  <em>All Cohorts</em>
-                </MenuItem>
-                {cohortBreakdown.map((c) => (
-                  <MenuItem key={c.id} value={c.cohort_code}>
-                    {c.cohort_code} - {c.name} ({c.count})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
 
           <TableContainer component={Paper} elevation={0} sx={{ border: 'none' }}>
             <Table>
