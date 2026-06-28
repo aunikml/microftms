@@ -770,10 +770,32 @@ const RegionalManagerDashboard = () => {
                           '&:hover': { textDecoration: 'underline' }
                         }}
                         onClick={async () => {
+                          const nameParts = t.name.split(' ');
+                          const firstName = nameParts[0] || '';
+                          const lastName = nameParts.slice(1).join(' ') || '';
+                          
+                          setSelectedTrainee({
+                            id: t.id,
+                            participant_id: t.participant_id,
+                            first_name: firstName,
+                            last_name: lastName,
+                            email: t.email,
+                            phone_number: t.phone !== '-' ? t.phone : '',
+                            cohort_name: t.cohort_name !== '-' ? t.cohort_name : '',
+                            cohort_code: t.cohort_code !== '-' ? t.cohort_code : '',
+                            batch_name: t.batch_name,
+                            regional_office_details: { name: t.regional_office },
+                            attendance_by_stage: {
+                              basic: { status: 'Pending', present: 0, absent: 0, late: 0 },
+                              refresher_1: { status: 'Pending', present: 0, absent: 0, late: 0 },
+                              refresher_2: { status: 'Pending', present: 0, absent: 0, late: 0 }
+                            }
+                          });
+                          setTraineeDetailsOpen(true);
+
                           try {
                             const res = await api.get(`participants/${t.id}/`);
                             setSelectedTrainee(res.data);
-                            setTraineeDetailsOpen(true);
                           } catch (err) {
                             console.error("Error loading trainee details:", err);
                           }
